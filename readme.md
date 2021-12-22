@@ -18,7 +18,7 @@ Incoming messages will be a JSON object with following format...
    "customer_time":"21/Dec/2021:09:50:31",
    
    "cost_shipping":34.57,
-   "cost_tax":0,
+   "cost_tax":12.56,
    
    "order_items":[
       {
