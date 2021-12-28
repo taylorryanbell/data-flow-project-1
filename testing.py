@@ -1,3 +1,10 @@
+import argparse
+import logging
+
+import apache_beam as beam
+from apache_beam.options.pipeline_options import PipelineOptions
+from apache_beam.options.pipeline_options import SetupOptions
+
 import time
 import json
 import numpy
@@ -9,7 +16,7 @@ from google.cloud import pubsub_v1
 
 # pub/sub values
 PROJECT_ID = "york-cdf-start"
-TOPIC = "trb_order_data"
+TOPIC = "dataflow-project-orders"
 
 # range values
 order_frequency_range = {'min': 1, 'max': 5, 'step': 1}
@@ -113,8 +120,52 @@ def callback(message_future):
         print(message_future.result())
 
 
+class AddressSplitter(beam.DoFn):
+    def process(self, element):
+        print(element)
+        if element[0] == 'order_address':
+            address_list = element[1].split(', ')
+            street_address = address_list[0].split(' ', 1)
+            bld_num = street_address[0]
+            street = street_address[1]
+            city = address_list[1]
+            state = address_list[2].split(' ', 1)
+            state_abbrev = state[0]
+            zip = state[1]
+            yield bld_num, street, city, state_abbrev, zip
+
+class NameSplitter(beam.DoFn):
+    def process(self, element):
+        if element[0] == 'customer_name':
+            full_name = element[1].split()
+            first_name = full_name[0]
+            last_name = full_name[1]
+            # print(first_name)
+            # print(last_name)
+            yield first_name, last_name
+
+class OrderPricer(beam.DoFn):
+    def process(self, element):
+        if element[0] == 'order_items':
+            total_price = 0
+            item_list = element[1]
+            for item in item_list:
+                total_price += item['price']
+            yield total_price
+
+class ShippingPricer(beam.DoFn):
+    def process(self, element):
+        if element[0] == 'cost_shipping':
+            yield element[1]
+
+class TaxPricer(beam.DoFn):
+    def process(self, element):
+        if element[0] == 'cost_tax':
+            yield element[1]
+
 if __name__ == '__main__':
-    while True:
+    i = 0
+    while i < 3:
         order = generate_order()
         message_future = publish(publisher, topic_path, order)
         message_future.add_done_callback(callback)
@@ -130,3 +181,18 @@ if __name__ == '__main__':
 
         print(order)
         time.sleep(timeout_seconds)
+
+        with beam.Pipeline() as pipeline:
+            full_order = pipeline | beam.Create(order)
+            customer_name = full_order | beam.ParDo(NameSplitter())
+            output = full_order | beam.Map(print)
+            exit()
+            # address = full_order | beam.ParDo(AddressSplitter())
+            # order_price = full_order | beam.ParDo(OrderPricer())
+            # shipping_price = full_order | beam.ParDo(ShippingPricer())
+            # tax_price = full_order | beam.ParDo(TaxPricer())
+            #
+            # merged = ((customer_name, address, order_price, shipping_price, tax_price) | 'Merge PCollections' >> beam.Flatten())
+            # output = merged | beam.Map(print)
+
+        i += 1
