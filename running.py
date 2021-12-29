@@ -1,9 +1,6 @@
 import json
-import argparse
-import logging
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
-from apache_beam.options.pipeline_options import SetupOptions
 from apache_beam.io.gcp.internal.clients import bigquery
 
 
@@ -118,12 +115,7 @@ class OrderMessage(beam.DoFn):
         yield message_bytes
 
 
-def run(argv=None, save_main_session=True):
-    # parser = argparse.ArgumentParser()
-    # known_args, pipeline_args = parser.parse_known_args(argv)
-    #
-    # pipeline_options = PipelineOptions(pipeline_args)
-    # pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
+def run():
 
     table_schema = {
         'fields': [
@@ -156,7 +148,7 @@ def run(argv=None, save_main_session=True):
         datasetId='taylorryanbell_3',
         tableId='gbp_order_payment_history')
 
-    with beam.Pipeline(options=PipelineOptions(streaming=True, save_main_session=True)) as pipeline:
+    with beam.Pipeline(runner="DataflowRunner", options=PipelineOptions(project="york-cdf-start", region="us-central1", temp_location="gs://york-project-bucket/taylorryanbell/dataflow/tmp/", staging_location="gs://york-project-bucket/taylorryanbell/dataflow/staging/", streaming=True, save_main_session=True)) as pipeline:
 
         # pull in data
         data = pipeline | 'ReadFromPubSub' >> beam.io.ReadFromPubSub(
