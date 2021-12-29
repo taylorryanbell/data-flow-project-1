@@ -7,26 +7,22 @@ from apache_beam.options.pipeline_options import SetupOptions
 from apache_beam.io.gcp.internal.clients import bigquery
 
 
-class TransformAll(beam.DoFn):
+class TransformAll(beam.DoFn):  # perform necessary transformations to clean the data, outputs a dictionary
     def process(self, element):
-        element_dict = {}
-        # print(element)
-        # print(type(element))
-        output = element.decode("utf-8")
-        full_order = json.loads(output)
+        element_dict = {}  # creates a blank dictionary
+        output = element.decode("utf-8")  # convert byte string to JSON string
+        full_order = json.loads(output)  # load JSON string as a Python Dictionary
 
         # get order_id
         element_dict['order_id'] = int(full_order['order_id'])
 
         # address transform
-        element_dict['order_address'] = []
-        address_dictionary = {}
-        address_string = full_order['order_address']
-        address_list = address_string.split(', ')
-        # print(len(address_list))
-        # print(address_list)
-        if len(address_list) == 3:
-            street_address = address_list[0].split(' ', 1)
+        element_dict['order_address'] = []  # create blank list for order_address
+        address_dictionary = {}  # create blank dictionary to fill with specific order_address details
+        address_string = full_order['order_address']  # import order_address only, as a string
+        address_list = address_string.split(', ')  # splits order_address at the comma, for further evaluation
+        if len(address_list) == 3:  # checks if address had 2 commas (residential)
+            street_address = address_list[0].split(' ', 1)  # split street address into number and name
             order_building_number = street_address[0]
             order_street_name = street_address[1]
             order_city = address_list[1]
@@ -38,7 +34,7 @@ class TransformAll(beam.DoFn):
             address_dictionary["order_city"] = order_city
             address_dictionary["order_state_code"] = order_state_code
             address_dictionary["order_zip_code"] = order_zip_code
-        elif len(address_list) == 2:
+        elif len(address_list) == 2:  # checks if address had 1 comma (military)
             mil_part_1 = address_list[0].split(' ')
             mil_part_2 = address_list[1].split(' ')
             address_dictionary["order_building_number"] = ''
@@ -67,8 +63,10 @@ class TransformAll(beam.DoFn):
         running_total = 0.0
         running_total += float(full_order['cost_shipping'])
         running_total += float(full_order['cost_tax'])
+
         for item in full_order['order_items']:
             running_total += float(item['price'])
+
         element_dict["cost_total"] = running_total
         # print(running_total)
 
@@ -79,15 +77,15 @@ class TransformAll(beam.DoFn):
         yield element_dict
 
 
-def Is_USD(element):
+def isUSD(element):
     return element["order_currency"] == 'USD'
 
 
-def Is_EUR(element):
+def isEUR(element):
     return element["order_currency"] == 'EUR'
 
 
-def Is_GBP(element):
+def isGBP(element):
     return element["order_currency"] == 'GBP'
 
 
@@ -127,42 +125,42 @@ def run(argv=None, save_main_session=True):
     # pipeline_options = PipelineOptions(pipeline_args)
     # pipeline_options.view_as(SetupOptions).save_main_session = save_main_session
 
+    table_schema = {
+        'fields': [
+            {'name': 'order_id', 'type': 'INTEGER', 'mode': 'NULLABLE'},
+            {'name': 'order_address', 'type': 'RECORD', 'mode': 'REPEATED', 'fields': [
+                {'name': 'order_building_number', 'type': 'STRING', 'mode': 'NULLABLE'},
+                {'name': 'order_street_name', 'type': 'STRING', 'mode': 'NULLABLE'},
+                {'name': 'order_city', 'type': 'STRING', 'mode': 'NULLABLE'},
+                {'name': 'order_state_code', 'type': 'STRING', 'mode': 'NULLABLE'},
+                {'name': 'order_zip_code', 'type': 'STRING', 'mode': 'NULLABLE'}
+            ],
+             },
+            {'name': 'customer_first_name', 'type': 'STRING', 'mode': 'NULLABLE'},
+            {'name': 'customer_last_name', 'type': 'STRING', 'mode': 'NULLABLE'},
+            {'name': 'customer_ip', 'type': 'STRING', 'mode': 'NULLABLE'},
+            {'name': 'cost_total', 'type': 'FLOAT', 'mode': 'NULLABLE'}
+        ]
+    }
+
     table1 = bigquery.TableReference(
         projectId='york-cdf-start',
-        datasetId='t_bell_proj_2',
+        datasetId='taylorryanbell_3',
         tableId='usd_order_payment_history')
     table2 = bigquery.TableReference(
         projectId='york-cdf-start',
-        datasetId='t_bell_proj_2',
+        datasetId='taylorryanbell_3',
         tableId='eur_order_payment_history')
     table3 = bigquery.TableReference(
         projectId='york-cdf-start',
-        datasetId='t_bell_proj_2',
+        datasetId='taylorryanbell_3',
         tableId='gbp_order_payment_history')
 
     with beam.Pipeline(options=PipelineOptions(streaming=True, save_main_session=True)) as pipeline:
-        table_schema = {
-            'fields': [
-                {'name': 'order_id', 'type': 'INTEGER', 'mode': 'NULLABLE'},
-                {'name': 'order_address', 'type': 'RECORD', 'mode': 'REPEATED', 'fields': [
-                    {'name': 'order_building_number', 'type': 'STRING', 'mode': 'NULLABLE'},
-                    {'name': 'order_street_name', 'type': 'STRING', 'mode': 'NULLABLE'},
-                    {'name': 'order_city', 'type': 'STRING', 'mode': 'NULLABLE'},
-                    {'name': 'order_state_code', 'type': 'STRING', 'mode': 'NULLABLE'},
-                    {'name': 'order_zip_code', 'type': 'STRING', 'mode': 'NULLABLE'}
-                ],
-                },
-                {'name': 'customer_first_name', 'type': 'STRING', 'mode': 'NULLABLE'},
-                {'name': 'customer_last_name', 'type': 'STRING', 'mode': 'NULLABLE'},
-                {'name': 'customer_ip', 'type': 'STRING', 'mode': 'NULLABLE'},
-                {'name': 'cost_total', 'type': 'FLOAT', 'mode': 'NULLABLE'}
-            ]
-        }
 
         # pull in data
         data = pipeline | 'ReadFromPubSub' >> beam.io.ReadFromPubSub(
             subscription='projects/york-cdf-start/subscriptions/trb_order_data-sub')
-        # output = data | beam.Map(print)
 
         # grab order message order_id and order_items list
         order_message = data | beam.ParDo(OrderMessage())
@@ -175,9 +173,9 @@ def run(argv=None, save_main_session=True):
         # output = cleaned | "Clean Print" >> beam.Map(print)
 
         # filter by currency
-        usd_filter = cleaned | "USD Filter" >> beam.Filter(Is_USD)
-        eur_filter = cleaned | "EUR Filter" >> beam.Filter(Is_EUR)
-        gbp_filter = cleaned | "GBP Filter" >> beam.Filter(Is_GBP)
+        usd_filter = cleaned | "USD Filter" >> beam.Filter(isUSD)
+        eur_filter = cleaned | "EUR Filter" >> beam.Filter(isEUR)
+        gbp_filter = cleaned | "GBP Filter" >> beam.Filter(isGBP)
 
         # remove currency from dictionary
         usd_orders = usd_filter | "USD Orders" >> beam.ParDo(FilterData())
@@ -204,11 +202,6 @@ def run(argv=None, save_main_session=True):
             schema=table_schema,
             create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED
         )
-
-        # write to BigQuery Tables
-        writer1 = usd_orders | 'WriteToBigQuery1' >> beam.io.WriteToBigQuery(table1)
-        writer2 = eur_orders | 'WriteToBigQuery2' >> beam.io.WriteToBigQuery(table2)
-        writer3 = gbp_orders | 'WriteToBigQuery3' >> beam.io.WriteToBigQuery(table3)
 
         pass
 

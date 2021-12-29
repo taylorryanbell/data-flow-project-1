@@ -114,19 +114,25 @@ def callback(message_future):
 
 
 if __name__ == '__main__':
+    i = 1
     while True:
-        order = generate_order()
-        message_future = publish(publisher, topic_path, order)
-        message_future.add_done_callback(callback)
 
-        timeout_seconds = random.choice(
-            range(
-                order_frequency_range['min'],
-                order_frequency_range['max'],
-                order_frequency_range['step']
+        if i <= 15:
+            order = generate_order()
+            message_future = publish(publisher, topic_path, order)
+            message_future.add_done_callback(callback)
+
+            timeout_seconds = random.choice(
+                range(
+                    order_frequency_range['min'],
+                    order_frequency_range['max'],
+                    order_frequency_range['step']
+                )
             )
-        )
 
 
-        print(order)
-        time.sleep(timeout_seconds)
+            print(order)
+            time.sleep(timeout_seconds)
+            i += 1
+        else:
+            exit()
