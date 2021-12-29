@@ -84,3 +84,11 @@ Incoming messages will be a JSON object with following format...
   
   
  
+ 
+ Command to use in Google Cloud Shell:
+ 
+ python dataflow.py \
+    --region us-central1 \
+    --runner DataflowRunner \
+    --project york-cdf-start \
+    --temp_location gs://york-project-bucket/taylorryanbell/dataflow/tmp/
