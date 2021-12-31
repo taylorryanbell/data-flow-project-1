@@ -91,7 +91,7 @@ class AddressSplitter(beam.DoFn):
                 order_building_number = None
 
             # set street name
-            order_street_name = element["order_address"].split(', ')[0].split(' ', 1)[1]
+            order_street_name = element["order_address"].split(', ')[0]
 
             # set city
             order_city = element["order_address"].split(', ')[-1].split(' ')[0]
